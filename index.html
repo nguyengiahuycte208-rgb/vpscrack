@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUYTOOL ULTIMATE - BOT TELEGRAM</title>
+    <style>
+        :root { --primary: #7000ff; --accent: #00f2ff; --bg: #050505; --card: #121212; }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow-x: hidden; }
+        .container { width: 380px; background: var(--card); padding: 30px; border-radius: 25px; border: 1px solid #222; box-shadow: 0 10px 50px rgba(0,0,0,0.5); text-align: center; position: relative; }
+        .container::before { content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px; background: linear-gradient(45deg, var(--primary), var(--accent)); z-index: -1; border-radius: 27px; opacity: 0.3; }
+        h1 { font-size: 22px; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin-bottom: 25px; text-shadow: 0 0 10px var(--accent); }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { font-size: 11px; color: #888; margin-left: 10px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 15px; background: #000; border: 1px solid #333; border-radius: 12px; color: #fff; box-sizing: border-box; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,242,255,0.2); }
+        .status-box { padding: 20px; background: #000; border-radius: 15px; margin: 20px 0; border: 1px solid #222; position: relative; }
+        #status-text { font-weight: 900; font-size: 18px; color: #ff3e3e; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        button { padding: 15px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; }
+        .btn-start { background: linear-gradient(90deg, var(--primary), #a044ff); color: #fff; grid-column: span 2; }
+        .btn-stop { background: #222; color: #888; }
+        .btn-info { background: #333; color: var(--accent); }
+        #log { font-size: 10px; color: #555; height: 60px; overflow-y: auto; margin-top: 15px; text-align: left; border-top: 1px solid #222; padding-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>HUYTOOL BOT</h1>
+    
+    <div class="input-group">
+        <label>Telegram Bot Token</label>
+        <input type="text" id="bot-token" placeholder="Dán Token vào đây...">
+    </div>
+
+    <div class="input-group">
+        <label>Admin ID (ID của bạn)</label>
+        <input type="text" id="admin-id" placeholder="Nhập ID Admin để cấp quyền...">
+    </div>
+
+    <div class="input-group">
+        <label>Chế độ chạy</label>
+        <select id="bot-mode">
+            <option value="normal">Cổng Thường (API TX)</option>
+            <option value="md5">Cổng MD5 (API TXMD5)</option>
+        </select>
+    </div>
+
+    <div class="status-box">
+        <div id="status-text">OFFLINE</div>
+        <div id="current-group" style="font-size: 10px; color: #555; margin-top: 5px;">Group: Chưa kích hoạt</div>
+    </div>
+
+    <div class="btn-grid">
+        <button class="btn-start" onclick="initHuyTool()">Khởi chạy hệ thống</button>
+        <button class="btn-info" onclick="alert('HD: Mời Bot vào nhóm, sau đó Admin gõ /on để bắt đầu báo kết quả!')">Hướng dẫn</button>
+        <button class="btn-stop" onclick="location.reload()">Dừng & Reset</button>
+    </div>
+
+    <div id="log">Sẵn sàng khởi động...</div>
+
+    <audio id="stay-awake" loop><source src="https://www.soundjay.com/button/beep-01a.mp3"></audio>
+</div>
+
+<script>
+    let isRunning = false;
+    let groupId = null;
+    let lastPhien = "";
+    let updateId = 0;
+    const wakeLock = document.getElementById('stay-awake');
+
+    function writeLog(msg) {
+        const log = document.getElementById('log');
+        log.innerHTML = `> ${msg}<br>${log.innerHTML}`;
+    }
+
+    async function checkCommands() {
+        const token = document.getElementById('bot-token').value;
+        const admin = document.getElementById('admin-id').value;
+        if(!isRunning || !token) return;
+
+        try {
+            const r = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${updateId + 1}`);
+            const d = await r.json();
+            if(d.result) {
+                for(let u of d.result) {
+                    updateId = u.update_id;
+                    if(u.message && u.message.text && u.message.from.id == admin) {
+                        if(u.message.text === "/on") {
+                            groupId = u.message.chat.id;
+                            document.getElementById('current-group').innerText = "Group ID: " + groupId;
+                            document.getElementById('status-text').innerText = "BOT ACTIVE";
+                            document.getElementById('status-text').style.color = "#00f2ff";
+                            writeLog("Đã nhận lệnh /on từ Admin!");
+                        }
+                    }
+                }
+            }
+        } catch(e) {}
+    }
+
+    async function fetchSignal() {
+        if(!isRunning || !groupId) return;
+        const mode = document.getElementById('bot-mode').value;
+        const token = document.getElementById('bot-token').value;
+        const api = mode === 'md5' 
+            ? 'https://aims-discussions-nottingham-milton.trycloudflare.com/api/txmd5'
+            : 'https://aims-discussions-nottingham-milton.trycloudflare.com/api/tx';
+
+        try {
+            const r = await fetch(`${api}?v=${Date.now()}`);
+            const d = await r.json();
+
+            if(d.phien && d.phien !== lastPhien) {
+                lastPhien = d.phien;
+                const prediction = d.du_doan_van_sau || "Đang tính...";
+                const tile = Math.floor(Math.random() * 21) + 75; // 75-95% cho uy tín
+                const icon = prediction.includes("TÀI") ? "🔴 TÀI" : "🟢 XỈU";
+                const modeName = mode === 'md5' ? "SIÊU CẤP MD5" : "CỔNG THƯỜNG";
+
+                const text = `💎 <b>HUYTOOL ${modeName}</b> 💎\n━━━━━━━━━━━━━━\n🎯 Phiên: <code>#${Number(d.phien) + 1}</code>\n🔮 Dự đoán: <b>${icon}</b>\n📊 Tỉ lệ thắng: <b>${tile}%</b>\n━━━━━━━━━━━━━━\n👑 Admin: <b>Khánh Huy</b>`;
+
+                await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ chat_id: groupId, text: text, parse_mode: 'HTML' })
+                });
+                writeLog(`Đã báo phiên #${Number(d.phien)+1}`);
+            }
+        } catch(e) { writeLog("Lỗi kết nối API..."); }
+    }
+
+    function initHuyTool() {
+        if(!document.getElementById('bot-token').value) return alert("Vui lòng nhập Token!");
+        isRunning = true;
+        wakeLock.volume = 0;
+        wakeLock.play().catch(()=>{});
+        
+        document.getElementById('status-text').innerText = "WAITING /ON...";
+        document.getElementById('status-text').style.color = "#7000ff";
+        
+        setInterval(checkCommands, 3000);
+        setInterval(fetchSignal, 8000);
+        writeLog("Hệ thống khởi động thành công!");
+    }
+</script>
+</body>
+</html>
